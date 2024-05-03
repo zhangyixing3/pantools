@@ -1,0 +1,19 @@
+[package]
+name = "gfar"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+env_logger = "0.10.0"
+chrono = "0.4.24"
+anyhow = "1.0.80"
+thiserror = "1.0.56"
+bstr = "1.9.1"
+
+# resource.rs
+ctor = "0.2.7"
+lazy_static = "1.4.0"
+libc = "0.2.135"
