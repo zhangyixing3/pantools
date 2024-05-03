@@ -1,9 +1,9 @@
 // src/other_module.rs
 use log::{debug, error, info, warn};
+mod error;
+pub mod gfa;
 mod logging;
 mod resource;
-pub mod gfa;
-mod error;
 
 fn main() {
     logging::init_logging();

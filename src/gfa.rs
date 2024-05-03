@@ -1,7 +1,7 @@
-use bstr::{io::BufReadExt, ByteSlice};
 use crate::error::CmdError;
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use bstr::{io::BufReadExt, ByteSlice};
+
 /// Builder struct for GFAParsers
 #[derive(Debug, Default, Clone, Copy)]
 pub struct GFAParserBuilder {
@@ -51,7 +51,7 @@ impl GFAParserBuilder {
         self
     }
 
-    pub fn build(&mut self) -> GFAParser{
+    pub fn build(&mut self) -> GFAParser {
         GFAParser {
             segments: self.segments,
             links: self.links,
@@ -59,7 +59,6 @@ impl GFAParserBuilder {
             paths: self.paths,
         }
     }
-
 }
 #[derive(Debug, Clone)]
 pub struct GFAParser {
@@ -69,7 +68,6 @@ pub struct GFAParser {
     paths: bool,
 }
 
-
 impl Default for GFAParser {
     fn default() -> Self {
         let mut config = GFAParserBuilder::all();
@@ -77,7 +75,13 @@ impl Default for GFAParser {
     }
 }
 
-
+pub enum GfaEntity {
+    Header(Header),
+    Segment(Segment),
+    Link(Link),
+    Walk(Walk),
+    Path(Path),
+}
 
 impl GFAParser {
     /// Create a new GFAParser that will parse all four GFA line
@@ -86,45 +90,46 @@ impl GFAParser {
         Default::default()
     }
 
-    pub fn parse_gfa_line(&self, bytes: &[u8]) ->  {
+    pub fn parse_gfa_line(&self, bytes: &[u8]) -> Result<Option<GfaEntity>, CmdError> {
         let line = bytes.trim_with(|c| c.is_ascii_whitespace());
         let mut fields = line.split_str(b"\t");
         let hdr = fields.next().ok_or(CmdError::EmptyLine)?;
 
-        let entity = match hdr {
-            b"H" => Header::parse_line(fields).map_err(CmdError::LineReadError),
-            b"S" => if self.segments {
-                Segment::parse_line(fields).map_err(CmdError::LineReadError)
-            } else {
-                return Ok(None)
-            },
-            b"L" => if self.links {
-                Link::parse_line(fields).map_err(CmdError::LineReadError)
-            } else {
-                return Ok(None)
-            },
-            b"W" => if self.walks {
-                Walk::parse_line(fields).map_err(CmdError::LineReadError)
-            } else {
-                return Ok(None)
-            },
-            b"P" => if self.paths {
-                Path::parse_line(fields).map_err(CmdError::LineReadError)
-            } else {
-                return Ok(None)
-            },
-            _ => return Err(CmdError::UnknownLineType),
-        }?;
-
-        Ok(entity)
+        match hdr {
+            b"H" => Ok(Some(GfaEntity::Header(Header::parse_line(fields)?))),
+            b"S" => {
+                if self.segments {
+                    Ok(Some(GfaEntity::Segment(Segment::parse_line(fields)?)))
+                } else {
+                    Ok(None)
+                }
+            }
+            b"L" => {
+                if self.links {
+                    Ok(Some(GfaEntity::Link(Link::parse_line(fields)?)))
+                } else {
+                    Ok(None)
+                }
+            }
+            b"W" => {
+                if self.walks {
+                    Ok(Some(GfaEntity::Walk(Walk::parse_line(fields)?)))
+                } else {
+                    Ok(None)
+                }
+            }
+            b"P" => {
+                if self.paths {
+                    Ok(Some(GfaEntity::Path(Path::parse_line(fields)?)))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Err(CmdError::UnknownLineType),
+        }
     }
 
-
-
-    pub fn parse_file<P: AsRef<std::path::Path>>(
-        &self,
-        path: P,
-    ) ->  Result<GFA, CmdError>{
+    pub fn parse_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<GFA, CmdError> {
         use std::{fs::File, io::BufReader};
 
         let file = File::open(path).map_err(CmdError::FileOpenError)?;
@@ -134,38 +139,55 @@ impl GFAParser {
 
         for line in lines {
             let line = line.map_err(CmdError::LineReadError)?;
-            match self.parse_gfa_line(line.as_ref()) {
-            };
+            if let Some(entity) = self.parse_gfa_line(line.as_bytes())? {
+                gfa.add_entity(entity);
+            }
         }
 
         Ok(gfa)
     }
 }
 
-
 pub struct GFA {
-    pub headers: Option<Header>,
-    pub segments: Option<Vec<Segment>>,
-    pub links: Option<Vec<Link>>,
-    pub walks: Option<Vec<Walk>>,
-    pub paths: Option<Vec<Path>>,
+    pub headers: Header,
+    pub segments: Vec<Segment>,
+    pub links: Vec<Link>,
+    pub walks: Vec<Walk>,
+    pub paths: Vec<Path>,
 }
 
 impl GFA {
     pub fn new() -> Self {
         GFA {
-            headers: None,
-            segments: Some(Vec::new()),
-            links: Some(Vec::new()),
-            walks: Some(Vec::new()),
-            paths: Some(Vec::new()),
+            headers: Header::new(), // Initialize empty vectors
+            segments: Vec::new(),
+            links: Vec::new(),
+            walks: Vec::new(),
+            paths: Vec::new(),
         }
     }
+    pub fn add_entity(&mut self, entity: GfaEntity) {
+        match entity {
+            GfaEntity::Header(header) => self.headers = header,
+            GfaEntity::Segment(segment) => self.segments.push(segment),
+            GfaEntity::Link(link) => self.links.push(link),
+            GfaEntity::Walk(walk) => self.walks.push(walk),
+            GfaEntity::Path(path) => self.paths.push(path),
         }
+    }
+}
 
 pub struct Header {
     pub version: String,
     pub samples: Option<Vec<String>>,
+}
+impl Header {
+    fn new() -> Self {
+        Header {
+            version: String::new(),
+            samples: None,
+        }
+    }
 }
 
 pub struct Segment {
@@ -192,33 +214,33 @@ pub struct Walk {
     pub ranges: Range,
     pub unit: Vec<u8>,
 }
-
+#[derive(Debug, Clone, Copy)]
 pub struct Range {
     pub start: u32,
     pub end: u32,
 }
 trait GfaParsable {
-    fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> where Self: Sized;
+    fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError>
+    where
+        Self: Sized;
 }
 
 impl GfaParsable for Header {
-    fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
-        let mut fields_iter = fields;
-        fields_iter.next();
-        let version_field = fields_iter.next().ok_or(CmdError::EmptyLine)?;
+    fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
+        let version_field = fields.next().ok_or(CmdError::EmptyLine)?;
         let version = if version_field.starts_with(b"VN:Z:") {
             String::from_utf8_lossy(&version_field[5..]).into_owned()
         } else {
-            return Err(CmdError::EmptyLine)
+            return Err(CmdError::EmptyLine);
         };
 
         let mut samples: Vec<String> = vec![];
 
-        for field in fields_iter {
+        for field in fields {
             let sample_info: String;
             if field.starts_with(b"RS:Z:") {
                 sample_info = String::from_utf8_lossy(&field[5..]).into_owned();
-            }else {
+            } else {
                 sample_info = String::from_utf8_lossy(&field).into_owned();
             }
             samples.push(sample_info);
@@ -242,21 +264,25 @@ fn u8_slice_to_usize(slice: &[u8]) -> Result<usize, CmdError> {
     Ok(num)
 }
 impl GfaParsable for Segment {
-    fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
-        let mut fields_iter = fields;
-        fields_iter.next();
-        let id = u8_slice_to_usize(fields_iter.next().ok_or(CmdError::EmptyLine)?)?;
-        let sequence = fields_iter.next().ok_or_else(|| CmdError::LineReadError(std::io::Error::new(std::io::ErrorKind::Other, "No sequence found for segment.")))?.to_vec();
+    fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
+        let id = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)?;
+        let sequence = fields
+            .next()
+            .ok_or_else(|| {
+                CmdError::LineReadError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "No sequence found for segment.",
+                ))
+            })?
+            .to_vec();
         Ok(Segment { id, sequence })
     }
 }
 
 impl GfaParsable for Link {
-    fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
-        let mut fields_iter = fields;
-        fields_iter.next();
-        let from_segment: usize = u8_slice_to_usize(fields_iter.next().ok_or(CmdError::EmptyLine)?)?;
-        let tem = fields_iter.next().ok_or(CmdError::EmptyLine)?;
+    fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
+        let from_segment: usize = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)?;
+        let tem = fields.next().ok_or(CmdError::EmptyLine)?;
         let from_orient: bool;
         match tem {
             b"+" => {
@@ -269,8 +295,8 @@ impl GfaParsable for Link {
                 return Err(CmdError::ParseError);
             }
         }
-        let to_segment: usize = u8_slice_to_usize(fields_iter.next().ok_or(CmdError::EmptyLine)?)?;
-        let tem = fields_iter.next().ok_or(CmdError::EmptyLine)?;
+        let to_segment: usize = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)?;
+        let tem = fields.next().ok_or(CmdError::EmptyLine)?;
         let to_orient: bool;
         match tem {
             b"+" => {
@@ -293,13 +319,14 @@ impl GfaParsable for Link {
 }
 impl GfaParsable for Walk {
     fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
-        fields.next();
-        let sample  = String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
-        let haptype : u8 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u8;
-        let chr : String = String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
-        let start : u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
-        let end : u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
-        let unit : Vec<u8> = fields.next().ok_or(CmdError::EmptyLine)?.to_vec();
+        let sample =
+            String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
+        let haptype: u8 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u8;
+        let chr: String =
+            String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
+        let start: u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
+        let end: u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
+        let unit: Vec<u8> = fields.next().ok_or(CmdError::EmptyLine)?.to_vec();
         Ok(Walk {
             sample,
             haptype,
@@ -312,7 +339,6 @@ impl GfaParsable for Walk {
 
 impl GfaParsable for Path {
     fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
-        fields.next();
         let line_str = String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?);
         let parts: Vec<&str> = line_str.split("#").collect();
 
@@ -322,27 +348,220 @@ impl GfaParsable for Path {
 
         let sample = parts[0].to_owned();
 
-        let haptype = parts[1].parse::<u8>()
-        .map_err(|_| CmdError::ParseError)?;
+        let haptype = parts[1].parse::<u8>().map_err(|_| CmdError::ParseError)?;
 
         let chroms_info = parts[2].split(":").collect::<Vec<&str>>();
-        if chroms_info.len() < 2 {
-            log::debug!("The Path line has no range information.");
-        }
-
         let chroms = chroms_info[0].to_owned();
+        let ranges = if chroms_info.len() == 2 {
+            let range_info = chroms_info[1].split("-").collect::<Vec<&str>>();
 
-        let range_info = chroms_info[1].split("-").collect::<Vec<&str>>();
-        let ranges = if range_info.len() == 2 {
-            let start = range_info[0].parse::<u32>().map_err(|_| CmdError::ParseError)?;
-            let end = range_info[1].parse::<u32>().map_err(|_| CmdError::ParseError)?;
+            let start = range_info[0]
+                .parse::<u32>()
+                .map_err(|_| CmdError::ParseError)?;
+            let end = range_info[1]
+                .parse::<u32>()
+                .map_err(|_| CmdError::ParseError)?;
             Some(Range { start, end })
         } else {
             None
         };
+
         let unit = fields.next().ok_or(CmdError::EmptyLine)?.to_vec();
 
-        Ok(Path { sample, haptype, chroms, ranges,unit })
+        Ok(Path {
+            sample,
+            haptype,
+            chroms,
+            ranges,
+            unit,
+        })
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::io::BufReader;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_parse_p_gfa1() {
+        let gfa_data = b"H\tVN:Z:1.0\n\
+            S\t11\tACCTT\n\
+            S\t12\tTCAAGG\n\
+            S\t13\tCTTGATT\n\
+            L\t11\t+\t12\t-\t4M\n\
+            L\t12\t-\t13\t+\t5M\n\
+            L\t11\t+\t13\t+\t3M\n\
+            P\t14#0#chr1\t11+,12-,13+\t4M,5M";
+        let cursor = Cursor::new(gfa_data);
+        let reader = BufReader::new(cursor);
+
+        let parser = GFAParser::default();
+        let mut gfa = GFA::new();
+
+        for line in reader.byte_lines() {
+            let line = line.expect("Failed to read line");
+
+            if let Some(entity) = parser
+                .parse_gfa_line(&line)
+                .expect("Failed to parse GFA line")
+            {
+                gfa.add_entity(entity);
+            }
+        }
+
+        // Assertions to verify the content of GFA structure
+        assert_eq!(gfa.headers.version, "1.0");
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 11 && s.sequence == b"ACCTT".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 12 && s.sequence == b"TCAAGG".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 13 && s.sequence == b"CTTGATT".as_ref()));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 11 && l.to_segment == 12));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 12 && l.to_segment == 13));
+        assert!(gfa.paths.iter().any(|p| p.sample == "14"));
+    }
+    #[test]
+    fn test_parse_p_gfa2() {
+        let gfa_data = b"H\tVN:Z:1.0\n\
+            S\t11\tACCTT\n\
+            S\t12\tTCAAGG\n\
+            S\t13\tCTTGATT\n\
+            L\t11\t+\t12\t-\t0M\n\
+            L\t12\t-\t13\t+\t0M\n\
+            L\t11\t+\t13\t+\t0M\n\
+            P\t14#0#chr1:0-36\t11+,12-,13+";
+        let cursor = Cursor::new(gfa_data);
+        let reader = BufReader::new(cursor);
+
+        let parser = GFAParser::default();
+        let mut gfa = GFA::new();
+
+        for line in reader.byte_lines() {
+            let line = line.expect("Failed to read line");
+            if let Some(entity) = parser
+                .parse_gfa_line(&line)
+                .expect("Failed to parse GFA line")
+            {
+                gfa.add_entity(entity);
+            }
+        }
+
+        // Assertions to verify the content of GFA structure
+        assert_eq!(gfa.headers.version, "1.0");
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 11 && s.sequence == b"ACCTT".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 12 && s.sequence == b"TCAAGG".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 13 && s.sequence == b"CTTGATT".as_ref()));
+
+        // Check links
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 11 && l.to_segment == 12));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 12 && l.to_segment == 13));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 11 && l.to_segment == 13));
+
+        // Check path
+        assert_eq!(gfa.paths[0].sample, "14");
+        assert_eq!(gfa.paths[0].chroms, "chr1");
+
+        // More detailed check for the ranges
+        assert!(gfa.paths[0].ranges.is_some());
+        let ranges = gfa.paths[0].ranges.as_ref().unwrap();
+        assert_eq!(ranges.start, 0, "The start of the range should be 0");
+        assert_eq!(ranges.end, 36, "The end of the range should be 36");
+    }
+    #[test]
+    fn test_parse_w_gfa() {
+        let gfa_data = b"H\tVN:Z:1.1\n\
+            S\t11\tACCTT\n\
+            S\t12\tTCAAGG\n\
+            S\t13\tCTTGATT\n\
+            L\t11\t+\t12\t-\t0M\n\
+            L\t12\t-\t13\t+\t0M\n\
+            L\t11\t+\t13\t+\t0M\n\
+            W\tsample\t0\tchr1\t0\t36\t>s11<s12>s13";
+        let cursor = Cursor::new(gfa_data);
+        let reader = BufReader::new(cursor);
+
+        let parser = GFAParser::default();
+        let mut gfa = GFA::new();
+
+        for line in reader.byte_lines() {
+            let line = line.expect("Failed to read line");
+            if let Some(entity) = parser
+                .parse_gfa_line(&line)
+                .expect("Failed to parse GFA line")
+            {
+                gfa.add_entity(entity);
+            }
+        }
+
+        // Assertions to verify the content of GFA structure
+        assert_eq!(gfa.headers.version, "1.1");
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 11 && s.sequence == b"ACCTT".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 12 && s.sequence == b"TCAAGG".as_ref()));
+        assert!(gfa
+            .segments
+            .iter()
+            .any(|s| s.id == 13 && s.sequence == b"CTTGATT".as_ref()));
+
+        // Check links
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 11 && l.to_segment == 12));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 12 && l.to_segment == 13));
+        assert!(gfa
+            .links
+            .iter()
+            .any(|l| l.from_segment == 11 && l.to_segment == 13));
+
+        // Check path
+        assert_eq!(gfa.walks[0].sample, "sample");
+        assert_eq!(gfa.walks[0].chroms, "chr1");
+
+        let ranges = gfa.walks[0].ranges;
+        assert_eq!(ranges.start, 0, "The start of the range should be 0");
+        assert_eq!(ranges.end, 36, "The end of the range should be 36");
+    }
+}
