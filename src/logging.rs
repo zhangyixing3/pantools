@@ -13,13 +13,20 @@ pub fn init_logging() {
             style.set_bold(false);
             writeln!(
                 buf,
-                "{}[{}]\t{}",
+                "{} [{}]{}:{:<4} {}",
                 style.value(Local::now().format("%Y/%m/%d %H:%M")),
                 level,
+                record
+                    .file()
+                    .unwrap_or("None")
+                    .split('/')
+                    .last()
+                    .unwrap_or("None"),
+                record.line().unwrap_or(0),
                 style.value(record.args())
             )
         })
-        .target(Target::Stdout)
+        .target(Target::Stderr)
         .filter(None, LevelFilter::Debug)
         .init();
 }

@@ -1,6 +1,7 @@
 use crate::error::CmdError;
 use anyhow::Result;
 use bstr::{io::BufReadExt, ByteSlice};
+use std::collections::HashMap;
 
 /// Builder struct for GFAParsers
 #[derive(Debug, Default, Clone, Copy)]
@@ -174,6 +175,13 @@ impl GFA {
             GfaEntity::Walk(walk) => self.walks.push(walk),
             GfaEntity::Path(path) => self.paths.push(path),
         }
+    }
+    pub fn get_segment_len(&self) -> HashMap<usize, usize> {
+        let mut len_map: HashMap<usize, usize> = HashMap::with_capacity(self.segments.len());
+        for segment in self.segments.iter() {
+            len_map.insert(segment.id, segment.sequence.len());
+        }
+        len_map
     }
 }
 
@@ -510,7 +518,7 @@ mod tests {
             L\t11\t+\t12\t-\t0M\n\
             L\t12\t-\t13\t+\t0M\n\
             L\t11\t+\t13\t+\t0M\n\
-            W\tsample\t0\tchr1\t0\t36\t>s11<s12>s13";
+            W\tsample\t0\tchr1\t0\t36\t>11<12>13";
         let cursor = Cursor::new(gfa_data);
         let reader = BufReader::new(cursor);
 
@@ -556,7 +564,7 @@ mod tests {
             .iter()
             .any(|l| l.from_segment == 11 && l.to_segment == 13));
 
-        // Check path
+        // Check walk
         assert_eq!(gfa.walks[0].sample, "sample");
         assert_eq!(gfa.walks[0].chroms, "chr1");
 
