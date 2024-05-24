@@ -14,6 +14,9 @@ pub enum CmdError {
     #[error("The line is empty")]
     EmptyLine,
 
+    #[error("write error")]
+    WriteError,
+
     #[error("Unknown line type")]
     UnknownLineType,
 }

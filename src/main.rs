@@ -1,5 +1,5 @@
 use clap::Parser;
-use gfar::cmd::prune;
+use gfar::cmd::pav;
 use gfar::error::CmdError;
 use gfar::logging;
 use gfar::resource;
@@ -21,19 +21,22 @@ struct Args {
 #[derive(Parser, Debug)]
 #[allow(non_camel_case_types)]
 enum Subcli {
-    /// remove complex regions from gfa
-    prune {
-        /// input Paths gfa
+    /// output pav matrix of  node list
+    pav {
+        /// input  gfa
         #[arg(short = 'g', long = "gfa", required = true)]
-        input: String,
-        /// output Walks gfa
+        gfa: String,
+        /// input  node list
+        #[arg(short = 'n', long = "node", required = true)]
+        node: String,
+        /// output pav matrix
         #[arg(short = 'o', long = "output", required = true)]
-        prefix: String,
+        output: String,
     },
 }
 
+#[warn(unused_imports)]
 fn main() -> Result<(), CmdError> {
-
     logging::init_logging();
     // log::debug!("Main|This is a debug message");
     // log::info!("This is an info message");
@@ -46,11 +49,9 @@ fn main() -> Result<(), CmdError> {
     // 2024/05/13 12:18 [ERROR]main.rs:38   This is an error message
     let arg: Args = Args::parse();
     match arg.command {
-        Subcli::prune { input, prefix } => {
-            prune::prune_gfa(input, prefix)?;
-        }
-    }
-    println!("{}", format!("Done!, gfar {}",VERSION));
+        Subcli::pav { gfa, node, output } => pav::run(gfa, node, output),
+    }?;
+    println!("{}", format!("Done!, gfar {}", VERSION));
     resource::gather_resources();
     Ok(())
 }

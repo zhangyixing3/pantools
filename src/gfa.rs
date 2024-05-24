@@ -215,17 +215,72 @@ pub struct Path {
     pub ranges: Option<Range>,
     pub unit: Vec<u8>,
 }
+pub struct NodeIterator<'a> {
+    data: &'a [u8],
+    pos: usize,
+    current_number: usize,
+    in_number: bool,
+}
+
+impl<'a> NodeIterator<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        NodeIterator {
+            data,
+            pos: 0,
+            current_number: 0,
+            in_number: false,
+        }
+    }
+}
+
+impl<'a> Iterator for NodeIterator<'a> {
+    type Item = usize;
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.pos < self.data.len() {
+            let byte = self.data[self.pos];
+            self.pos += 1;
+
+            match byte {
+                b'>' | b'<' => {
+                    if self.in_number {
+                        self.in_number = false;
+                        let number = self.current_number;
+                        self.current_number = 0;
+                        return Some(number);
+                    }
+                }
+                b'0'..=b'9' => {
+                    self.current_number = self.current_number * 10 + (byte - b'0') as usize;
+                    self.in_number = true;
+                }
+                _ => {}
+            }
+        }
+
+        if self.in_number {
+            self.in_number = false;
+            return Some(self.current_number);
+        }
+        None
+    }
+}
+
 pub struct Walk {
     pub sample: String,
-    pub haptype: u8,
+    pub haptype: String,
     pub chroms: String,
     pub ranges: Range,
     pub unit: Vec<u8>,
 }
+impl Walk {
+    pub fn extract_node(&self) -> NodeIterator {
+        NodeIterator::new(&self.unit)
+    }
+}
 #[derive(Debug, Clone, Copy)]
 pub struct Range {
-    pub start: u32,
-    pub end: u32,
+    pub start: usize,
+    pub end: usize,
 }
 trait GfaParsable {
     fn parse_line<'a>(fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError>
@@ -329,11 +384,12 @@ impl GfaParsable for Walk {
     fn parse_line<'a>(mut fields: impl Iterator<Item = &'a [u8]>) -> Result<Self, CmdError> {
         let sample =
             String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
-        let haptype: u8 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u8;
+        let haptype: String =
+            String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
         let chr: String =
             String::from_utf8_lossy(fields.next().ok_or(CmdError::EmptyLine)?).into_owned();
-        let start: u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
-        let end: u32 = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as u32;
+        let start: usize = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as usize;
+        let end: usize = u8_slice_to_usize(fields.next().ok_or(CmdError::EmptyLine)?)? as usize;
         let unit: Vec<u8> = fields.next().ok_or(CmdError::EmptyLine)?.to_vec();
         Ok(Walk {
             sample,
@@ -364,10 +420,10 @@ impl GfaParsable for Path {
             let range_info = chroms_info[1].split("-").collect::<Vec<&str>>();
 
             let start = range_info[0]
-                .parse::<u32>()
+                .parse::<usize>()
                 .map_err(|_| CmdError::ParseError)?;
             let end = range_info[1]
-                .parse::<u32>()
+                .parse::<usize>()
                 .map_err(|_| CmdError::ParseError)?;
             Some(Range { start, end })
         } else {
@@ -567,9 +623,14 @@ mod tests {
         // Check walk
         assert_eq!(gfa.walks[0].sample, "sample");
         assert_eq!(gfa.walks[0].chroms, "chr1");
+        assert_eq!(gfa.walks[0].haptype, "0");
+        let unit = gfa.walks[0].extract_node().collect::<Vec<usize>>();
+        assert_eq!(unit, vec![11_usize, 12_usize, 13_usize]);
 
         let ranges = gfa.walks[0].ranges;
         assert_eq!(ranges.start, 0, "The start of the range should be 0");
         assert_eq!(ranges.end, 36, "The end of the range should be 36");
+
+
     }
 }
