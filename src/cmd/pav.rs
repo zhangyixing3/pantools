@@ -63,6 +63,7 @@ pub fn run(gfa: String, node: String, output: String) -> Result<(), CmdError> {
         let tem: Vec<String> = tem_vec.iter().map(|x| x.to_string()).collect();
         writeln!(&mut writer, "{}\t{}", i, tem.join("\t")).map_err(|_| CmdError::WriteError)?;
     }
+    writer.flush().map_err(|_| CmdError::WriteError)?;
 
     Ok(())
 }

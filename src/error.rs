@@ -17,6 +17,9 @@ pub enum CmdError {
     #[error("write error")]
     WriteError,
 
+    #[error("Failed to create file")]
+    CreateFileError,
+
     #[error("Unknown line type")]
     UnknownLineType,
 }

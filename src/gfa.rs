@@ -317,7 +317,7 @@ impl GfaParsable for Header {
         Ok(Header { version, samples })
     }
 }
-fn u8_slice_to_usize(slice: &[u8]) -> Result<usize, CmdError> {
+pub fn u8_slice_to_usize(slice: &[u8]) -> Result<usize, CmdError> {
     let mut num = 0;
 
     for &b in slice {
@@ -455,10 +455,10 @@ mod tests {
             S\t11\tACCTT\n\
             S\t12\tTCAAGG\n\
             S\t13\tCTTGATT\n\
-            L\t11\t+\t12\t-\t4M\n\
-            L\t12\t-\t13\t+\t5M\n\
-            L\t11\t+\t13\t+\t3M\n\
-            P\t14#0#chr1\t11+,12-,13+\t4M,5M";
+            L\t11\t+\t12\t-\t0M\n\
+            L\t12\t-\t13\t+\t0M\n\
+            L\t11\t+\t13\t+\t0M\n\
+            P\t14#0#chr1\t11+,12-,13+\t0M,0M";
         let cursor = Cursor::new(gfa_data);
         let reader = BufReader::new(cursor);
 
@@ -509,7 +509,7 @@ mod tests {
             L\t11\t+\t12\t-\t0M\n\
             L\t12\t-\t13\t+\t0M\n\
             L\t11\t+\t13\t+\t0M\n\
-            P\t14#0#chr1:0-36\t11+,12-,13+";
+            P\t14#0#chr1:0-18\t11+,12-,13+";
         let cursor = Cursor::new(gfa_data);
         let reader = BufReader::new(cursor);
 
@@ -563,7 +563,9 @@ mod tests {
         assert!(gfa.paths[0].ranges.is_some());
         let ranges = gfa.paths[0].ranges.as_ref().unwrap();
         assert_eq!(ranges.start, 0, "The start of the range should be 0");
-        assert_eq!(ranges.end, 36, "The end of the range should be 36");
+        assert_eq!(ranges.end, 18, "The end of the range should be 18");
+        let a = gfa.segments.iter().map(|s| s.sequence.len()).sum::<usize>();
+        assert_eq!(a, 18, "The length of the sequence should be 18");
     }
     #[test]
     fn test_parse_w_gfa() {
@@ -574,7 +576,7 @@ mod tests {
             L\t11\t+\t12\t-\t0M\n\
             L\t12\t-\t13\t+\t0M\n\
             L\t11\t+\t13\t+\t0M\n\
-            W\tsample\t0\tchr1\t0\t36\t>11<12>13";
+            W\tsample\t0\tchr1\t0\t18\t>11<12>13";
         let cursor = Cursor::new(gfa_data);
         let reader = BufReader::new(cursor);
 
@@ -629,8 +631,6 @@ mod tests {
 
         let ranges = gfa.walks[0].ranges;
         assert_eq!(ranges.start, 0, "The start of the range should be 0");
-        assert_eq!(ranges.end, 36, "The end of the range should be 36");
-
-
+        assert_eq!(ranges.end, 18, "The end of the range should be 18");
     }
 }
