@@ -13,6 +13,7 @@ anyhow = "1.0.80"
 thiserror = "1.0.56"
 bstr = "1.9.1"
 clap = { version = "4.0.18", features = ["derive"] }
+tempdir = "0.3"
 # resource.rs
 ctor = "0.2.7"
 lazy_static = "1.4.0"
