@@ -8,6 +8,7 @@ use std::io::{BufWriter, Write};
 use std::{fs::File, io::BufReader};
 
 fn p2w(input: &[u8]) -> Vec<u8> {
+    // b"11+,12-,13+" => b">11<12<13"
     input
         .split(|&b| b == b',')
         .flat_map(|part| {
@@ -23,6 +24,7 @@ fn p2w(input: &[u8]) -> Vec<u8> {
 }
 
 fn w2p(input: &[u8]) -> Vec<u8> {
+    // b">11<12<13" => b"11+,12-,13+"
     let mut result = Vec::new();
     let mut i = 0;
     while i < input.len() {
