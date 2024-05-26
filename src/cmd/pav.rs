@@ -112,26 +112,38 @@ mod tests {
 
         assert!(result.is_ok());
         let output_content = std::fs::read_to_string(output_file_path).unwrap();
-        let expected_content = 
-            "node\tsample1\tsample2\tsample3\tsample4\
+        let expected_content = "node\tsample1\tsample2\tsample3\tsample4\
             \tsample5\n11\t1\t1\t1\t2\t1\n12\t1\t1\t0\
             \t0\t1\n13\t1\t0\t1\t0\t0\n";
 
+        let output_lines: Vec<String> = output_content
+            .trim()
+            .split('\n')
+            .map(String::from)
+            .collect();
+        let expected_lines: Vec<String> = expected_content
+            .trim()
+            .split('\n')
+            .map(String::from)
+            .collect();
 
-        let output_lines: Vec<String> = output_content.trim().split('\n').map(String::from).collect();
-        let expected_lines: Vec<String> = expected_content.trim().split('\n').map(String::from).collect();
+        let mut output_columns: Vec<String> = output_lines
+            .iter()
+            .map(|line| {
+                let mut columns: Vec<&str> = line.split('\t').collect();
+                columns.sort();
+                columns.join("\t")
+            })
+            .collect();
 
-        let mut output_columns: Vec<String> = output_lines.iter().map(|line| {
-            let mut columns: Vec<&str> = line.split('\t').collect();
-            columns.sort();
-            columns.join("\t")
-        }).collect();
-
-        let mut expected_columns: Vec<String> = expected_lines.iter().map(|line| {
-            let mut columns: Vec<&str> = line.split('\t').collect();
-            columns.sort();
-            columns.join("\t")
-        }).collect();
+        let mut expected_columns: Vec<String> = expected_lines
+            .iter()
+            .map(|line| {
+                let mut columns: Vec<&str> = line.split('\t').collect();
+                columns.sort();
+                columns.join("\t")
+            })
+            .collect();
 
         output_columns.sort();
         expected_columns.sort();

@@ -198,7 +198,8 @@ fn handle_w_line(line: &Vec<u8>, output: &mut BufWriter<File>) -> Result<(), Cmd
 mod tests {
     use super::*;
     use std::fs::File;
-    use std::io::Read;
+    use std::io::{Read, Write};
+    use tempdir::TempDir;
 
     #[test]
     fn test_p2w() {
@@ -216,13 +217,13 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    fn setup_test_file(data: &[u8], path: &str) {
+    fn setup_test_file(data: &[u8], path: &std::path::Path) {
         let mut file = File::create(path).expect("Unable to create test file");
         file.write_all(data)
             .expect("Unable to write data to test file");
     }
 
-    fn read_test_file(path: &str) -> Vec<u8> {
+    fn read_test_file(path: &std::path::Path) -> Vec<u8> {
         let mut file = File::open(path).expect("Unable to open test file");
         let mut data = Vec::new();
         file.read_to_end(&mut data)
@@ -232,8 +233,9 @@ mod tests {
 
     #[test]
     fn test_convert_1_1_case1() {
-        let input_path = "test_input_1_0.gfa";
-        let output_path = "test_output_1_1.gfa";
+        let temp_dir = TempDir::new("test_convert_1_1_case1").unwrap();
+        let input_path = temp_dir.path().join("test_input_1_0.gfa");
+        let output_path = temp_dir.path().join("test_output_1_1.gfa");
         let gfa_data = b"H\tVN:Z:1.0\n\
             S\t11\tACCTT\n\
             S\t12\tTCAAGG\n\
@@ -252,18 +254,23 @@ mod tests {
             L\t11\t+\t13\t+\t0M\n\
             W\tsample\t0\tchr1\t0\t18\t>11<12>13\n";
 
-        setup_test_file(gfa_data, input_path);
+        setup_test_file(gfa_data, &input_path);
 
-        convert_1_1(input_path.to_string(), output_path.to_string()).expect("Conversion failed");
+        convert_1_1(
+            input_path.to_string_lossy().to_string(),
+            output_path.to_string_lossy().to_string(),
+        )
+        .expect("Conversion failed");
 
-        let result = read_test_file(output_path);
+        let result = read_test_file(&output_path);
         assert_eq!(result, expected);
     }
 
     #[test]
     fn test_convert_1_1_case2() {
-        let input_path = "test_input_1_0_case2.gfa";
-        let output_path = "test_output_1_1_case2.gfa";
+        let temp_dir = TempDir::new("test_convert_1_1_case2").unwrap();
+        let input_path = temp_dir.path().join("test_input_1_0_case2.gfa");
+        let output_path = temp_dir.path().join("test_output_1_1_case2.gfa");
         let gfa_data = b"H\tVN:Z:1.0\n\
             S\t11\tACCTT\n\
             S\t12\tTCAAGG\n\
@@ -282,18 +289,23 @@ mod tests {
             L\t11\t+\t13\t+\t0M\n\
             W\tsample\t0\tchr1\t0\t18\t>11<12>13\n";
 
-        setup_test_file(gfa_data, input_path);
+        setup_test_file(gfa_data, &input_path);
 
-        convert_1_1(input_path.to_string(), output_path.to_string()).expect("Conversion failed");
+        convert_1_1(
+            input_path.to_string_lossy().to_string(),
+            output_path.to_string_lossy().to_string(),
+        )
+        .expect("Conversion failed");
 
-        let result = read_test_file(output_path);
+        let result = read_test_file(&output_path);
         assert_eq!(result, expected);
     }
 
     #[test]
     fn test_convert_1_0() {
-        let input_path = "test_input_1_1.gfa";
-        let output_path = "test_output_1_0.gfa";
+        let temp_dir = TempDir::new("test_convert_1_0").unwrap();
+        let input_path = temp_dir.path().join("test_input_1_1.gfa");
+        let output_path = temp_dir.path().join("test_output_1_0.gfa");
         let gfa_data = b"H\tVN:Z:1.1\n\
             S\t11\tACCTT\n\
             S\t12\tTCAAGG\n\
@@ -312,11 +324,15 @@ mod tests {
             L\t11\t+\t13\t+\t0M\n\
             P\tsample#0#chr1:0-18\t11+,12-,13+\n";
 
-        setup_test_file(gfa_data, input_path);
+        setup_test_file(gfa_data, &input_path);
 
-        convert_1_0(input_path.to_string(), output_path.to_string()).expect("Conversion failed");
+        convert_1_0(
+            input_path.to_string_lossy().to_string(),
+            output_path.to_string_lossy().to_string(),
+        )
+        .expect("Conversion failed");
 
-        let result = read_test_file(output_path);
+        let result = read_test_file(&output_path);
         assert_eq!(result, expected);
     }
 }
