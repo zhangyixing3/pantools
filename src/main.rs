@@ -1,6 +1,7 @@
 use clap::Parser;
-use gfar::cmd::pav;
 use gfar::cmd::convert;
+use gfar::cmd::index;
+use gfar::cmd::pav;
 use gfar::error::CmdError;
 use gfar::logging;
 use gfar::resource;
@@ -30,22 +31,28 @@ enum Subcli {
         /// output gfa
         #[arg(short = 'o', long = "output", required = true)]
         output: String,
-        /// w2p
-        #[arg(short = 'i', required = false, default_value = "1")]
-        i:String
+        /// w2p <True 1 else False 0>
+        #[arg(short = 'i', required = true, default_value = "1")]
+        i: String,
     },
-        /// output pav matrix of  node list
-        pav {
-            /// input  gfa
-            #[arg(short = 'g', long = "gfa", required = true)]
-            gfa: String,
-            /// input  node list
-            #[arg(short = 'n', long = "node", required = true)]
-            node: String,
-            /// output pav matrix
-            #[arg(short = 'o', long = "output", required = true)]
-            output: String,
-        },
+    /// output pav matrix of  node list
+    pav {
+        /// input  gfa
+        #[arg(short = 'g', long = "gfa", required = true)]
+        gfa: String,
+        /// input  node list
+        #[arg(short = 'n', long = "node", required = true)]
+        node: String,
+        /// output pav matrix
+        #[arg(short = 'o', long = "output", required = true)]
+        output: String,
+    },
+    /// build index for gfa
+    index {
+        /// input  gfa
+        #[arg(short = 'g', long = "gfa", required = true)]
+        gfa: String,
+    },
 }
 
 #[warn(unused_imports)]
@@ -69,8 +76,11 @@ fn main() -> Result<(), CmdError> {
             } else {
                 convert::convert_1_0(input, output)?
             }
-        },
+        }
         Subcli::pav { gfa, node, output } => pav::run(gfa, node, output)?,
+        Subcli::index { gfa } => {
+            index::build(&gfa)?;
+        }
     };
     println!("{}", format!("Done!, gfar {}", VERSION));
     resource::gather_resources();
