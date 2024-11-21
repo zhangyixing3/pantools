@@ -1,55 +1,60 @@
-use clap::Parser;
-use gfar::cmd::convert;
-use gfar::cmd::index;
-use gfar::cmd::pav;
-use gfar::error::CmdError;
-use gfar::logging;
-use gfar::resource;
+use clap::{Parser, Subcommand};
+use pantools::cmd::convert;
+use pantools::cmd::index;
+use pantools::cmd::pav;
+use pantools::error::CmdError;
+use pantools::logging;
+use pantools::resource;
 use log;
 
 const VERSION: &str = "version 0.1";
+
 #[derive(Parser, Debug)]
 #[command(
     author = "Zhang Yixing",
     version = VERSION,
-    about = "gfar is a tool for converting GFA files",
+    about = "pantools is a tool for converting GFA files",
     long_about = None
 )]
 struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Subcli,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Subcommand, Debug)]
 #[allow(non_camel_case_types)]
 enum Subcli {
-    /// convert gfa between gfa1.0 in gfa1.1
+    /// Convert GFA between GFA1.0 and GFA1.1
     convert {
-        /// input  gfa
+        /// Input GFA file
         #[arg(short = 'g', long = "gfa", required = true)]
         input: String,
-        /// output gfa
+
+        /// Output GFA file
         #[arg(short = 'o', long = "output", required = true)]
         output: String,
-        /// w2p <True 1 else False 0>
-        #[arg(short = 'i', required = true, default_value = "1")]
+
+        /// W2P flag <True 1 else False 0>
+        #[arg(short = 'i', default_value = "1")]
         i: String,
     },
-    /// output pav matrix of  node list
+    /// Output PAV matrix of node list
     pav {
-        /// input  gfa
+        /// Input GFA file
         #[arg(short = 'g', long = "gfa", required = true)]
         gfa: String,
-        /// input  node list
+
+        /// Input node list
         #[arg(short = 'n', long = "node", required = true)]
         node: String,
-        /// output pav matrix
+
+        /// Output PAV matrix
         #[arg(short = 'o', long = "output", required = true)]
         output: String,
     },
-    /// build index for gfa
+    /// Build index for GFA
     index {
-        /// input  gfa
+        /// Input GFA file
         #[arg(short = 'g', long = "gfa", required = true)]
         gfa: String,
     },
@@ -82,7 +87,7 @@ fn main() -> Result<(), CmdError> {
             index::build(&gfa)?;
         }
     };
-    println!("{}", format!("Done!, gfar {}", VERSION));
+    println!("{}", format!("Done!, pantools {}", VERSION));
     resource::gather_resources();
     Ok(())
 }
